@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Desencriptador AES-256-GCM desde URL</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      font-family: monospace;
+      margin-top: 10px;
+    }
+
+    button {
+      font-size: 1.2em;
+      padding: 10px 20px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .json-field {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 10px 0;
+      background: #f9f9f9;
+    }
+
+    .json-key {
+      font-weight: bold;
+      font-size: 1.6em;
+      margin-right: 10px;
+    }
+
+    .copy-btn {
+      margin-left: 10px;
+      font-size: 0.8em;
+      padding: 4px 8px;
+    }
+
+    .json-output {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Desencriptador AES-256-GCM desde URL</h2>
+
+  <label for="password">Contraseña:</label><br>
+  <input type="password" id="password"><br>
+  <button onclick="decrypt()">🔓 Desencriptar</button>
+
+  <div id="output" class="json-output"></div>
+
+  <textarea id="rawOutput" readonly style="display: none;"></textarea>
+
+  <script>
+    async function decrypt() {
+      const password = document.getElementById('password').value;
+      const output = document.getElementById('output');
+      const rawOutput = document.getElementById('rawOutput');
+      output.innerHTML = '';
+      rawOutput.style.display = 'none';
+
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const data = urlParams.get('d');
+        if (!data) {
+          output.innerText = 'No se encontró "data" en la URL.';
+          return;
+        }
+
+        const encryptedData = atob(decodeURIComponent(data));
+        const iv = new Uint8Array(encryptedData.slice(0, 12).split('').map(c => c.charCodeAt(0)));
+        const ciphertext = new Uint8Array(encryptedData.slice(12).split('').map(c => c.charCodeAt(0)));
+
+        const keyMaterial = await window.crypto.subtle.importKey(
+          'raw',
+          new TextEncoder().encode(password),
+          { name: 'PBKDF2' },
+          false,
+          ['deriveKey']
+        );
+
+        const key = await window.crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: iv,
+            iterations: 100000,
+            hash: 'SHA-256'
+          },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['decrypt']
+        );
+
+        const decrypted = await window.crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: iv },
+          key,
+          ciphertext
+        );
+
+        const decodedText = new TextDecoder().decode(decrypted);
+
+        try {
+          const parsed = JSON.parse(decodedText);
+          for (const [key, value] of Object.entries(parsed)) {
+            const field = document.createElement('div');
+            field.className = 'json-field';
+
+            const keySpan = document.createElement('span');
+            keySpan.className = 'json-key';
+            keySpan.textContent = key + ':';
+
+            const valueSpan = document.createElement('span');
+            valueSpan.textContent = value;
+
+            field.appendChild(keySpan);
+            field.appendChild(valueSpan);
+
+            if (key.startsWith('xprv')) {
+              const copyBtn = document.createElement('button');
+              copyBtn.className = 'copy-btn';
+              copyBtn.textContent = '📋 Copiar';
+              copyBtn.onclick = () => navigator.clipboard.writeText(value);
+              field.appendChild(copyBtn);
+            }
+
+            output.appendChild(field);
+          }
+        } catch (e) {
+          // No es JSON válido, mostrar texto plano
+          rawOutput.value = decodedText;
+          rawOutput.style.display = 'block';
+        }
+      } catch (error) {
+        output.innerText = 'Error al desencriptar. Verifica la contraseña y los datos.';
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>
