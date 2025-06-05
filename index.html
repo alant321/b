@@ -24,30 +24,58 @@
       margin-top: 10px;
       cursor: pointer;
     }
+    input[type="password"] {
+    width: 100%;
+    font-size: 1.2em;
+    padding: 10px;
+    margin-top: 5px;
+    box-sizing: border-box;
+   }
 
+
+
+
+        .json-field {
+      border: 1px solid #ccc; border-radius: 8px;
+      padding: 10px; margin: 10px 0; background: #f9f9f9;
+    }
+    .json-key { font-weight: bold; font-size: 1.6em; margin-right: 10px; }
+    .copy-btn { margin-left: 10px; font-size: 0.8em; padding: 4px 8px; }
+    .json-output { margin-top: 20px; }
+    #reader { width: 100%; margin-top: 20px; }
     .json-field {
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      padding: 10px;
-      margin: 10px 0;
-      background: #f9f9f9;
-    }
+  border: 1px solid #ccc;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background-color: #f9f9f9;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+  overflow-x: auto;
+}
 
-    .json-key {
-      font-weight: bold;
-      font-size: 1.6em;
-      margin-right: 10px;
-    }
-
-    .copy-btn {
-      margin-left: 10px;
-      font-size: 0.8em;
-      padding: 4px 8px;
-    }
-
-    .json-output {
-      margin-top: 20px;
-    }
+.json-field span {
+  display: block;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+.explanation {
+  margin-top: 20px;
+  padding: 12px;
+  border-left: 4px solid #4caf50;
+  background-color: #f0fff0;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.explanation code {
+  background: #eee;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
   </style>
 </head>
 <body>
@@ -78,8 +106,9 @@
         }
 
         const encryptedData = Uint8Array.from(atob(decodeURIComponent(data)), c => c.charCodeAt(0));
-        const iv = encryptedData.slice(0, 12);
-        const ciphertext = encryptedData.slice(12);
+        const salt = encryptedData.slice(0, 16);
+        const iv = encryptedData.slice(16, 28);
+        const ciphertext = encryptedData.slice(28);
 
         const keyMaterial = await window.crypto.subtle.importKey(
           'raw',
@@ -92,7 +121,7 @@
         const key = await window.crypto.subtle.deriveKey(
           {
             name: 'PBKDF2',
-            salt: iv,
+            salt: salt,
             iterations: 100000,
             hash: 'SHA-256'
           },
@@ -136,6 +165,29 @@
 
             output.appendChild(field);
           }
+          if ('xprv1' in parsed && 'xprv2' in parsed && 'derivation' in parsed && 'script_type' in parsed) {
+          const explanation = document.createElement('div');
+          explanation.className = 'explanation';
+
+          explanation.innerHTML = `
+            <h3>Cómo usar esta información</h3>
+            <p>
+              Esta información corresponde a una configuración de <strong>multifirma 2 de 2</strong>. Para acceder a los fondos:
+            </p>
+            <ol>
+              <li>Utilizá ambos <code>xprv1</code> y <code>xprv2</code> como las claves privadas extendidas de los firmantes.</li>
+              <li>El <code>derivation</code> te indica cómo derivar las direcciones HD desde cada xprv. Usualmente se importa esto directamente en una wallet compatible.</li>
+              <li>El <code>script_type</code> define el tipo de dirección multifirma (por ejemplo: <code>p2wsh</code>, <code>p2sh</code>, etc.).</li>
+              <li>Podés usar software como <a href="https://sparrowwallet.com" target="_blank">Sparrow Wallet</a> para importar las claves y reconstruir la cartera multifirma.</li>
+              <p>Como alternativa, si necesitás una app para <strong>Android</strong> o preferís algo más liviano, también podés usar <strong><a href="https://electrum.org" target="_blank">Electrum</a></strong>, aunque su interfaz es menos visual e intuitiva para multifirma.</p>
+            </ol>
+            <p>
+              No compartas estas claves con nadie. Tener ambas <code>xprv</code> permite mover los fondos.
+            </p>
+          `;
+
+          output.appendChild(explanation);
+        }
         } catch (e) {
           // No es JSON válido, mostrar texto plano
           rawOutput.value = decodedText;
