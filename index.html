@@ -73,13 +73,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         const data = urlParams.get('d');
         if (!data) {
-          output.innerText = 'No se encontró "data" en la URL.';
+          output.innerText = 'No se encontró "d" (data) en la URL.';
           return;
         }
 
-        const encryptedData = atob(decodeURIComponent(data));
-        const iv = new Uint8Array(encryptedData.slice(0, 12).split('').map(c => c.charCodeAt(0)));
-        const ciphertext = new Uint8Array(encryptedData.slice(12).split('').map(c => c.charCodeAt(0)));
+        const encryptedData = Uint8Array.from(atob(decodeURIComponent(data)), c => c.charCodeAt(0));
+        const iv = encryptedData.slice(0, 12);
+        const ciphertext = encryptedData.slice(12);
 
         const keyMaterial = await window.crypto.subtle.importKey(
           'raw',
